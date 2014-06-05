@@ -34,15 +34,35 @@ def positive_int(x):
         raise argparse.ArgumentTypeError("%s is an invalid strictly positive int value" % x)
     return x_int
 
-def generateRandom(seq, size, num_samples = None):
-    ''' generate a random word from a uniform distribution
+def generateRandom(seq, size, num_samples = None, tester = lambda x: True):
+    ''' generate a random word from a uniform distribution. Tester returns true
+        if a given sequence is legal. This generator will never terminate if
+        it is impossible to satisfy tester.
     '''
     if num_samples == None:
         while True:
-            yield tuple(np.random.choice(seq, size = size, replace = True))
+            new_sample = tuple(np.random.choice(seq, size = size, replace = True))
+            while not tester(new_sample):
+                new_sample = tuple(np.random.choice(seq, size = size, replace = True))
+            yield new_sample
     else:
         for i in xrange(num_samples):
-            yield tuple(np.random.choice(seq, size = size, replace = True))
+            new_sample = tuple(np.random.choice(seq, size = size, replace = True))
+            while not tester(new_sample):
+                new_sample = tuple(np.random.choice(seq, size = size, replace = True))
+            yield new_sample
+
+def filtersequences(samples, scorer, tester):
+    ''' filter a list of sequences. tester compares to sequences are returns
+        true if they are not too close. The returned list is a legal set of
+        sequence according to the test. There are no optimality guarantees.
+    '''
+    sample_score = sorted([ (s, scorer(s)) for s in samples], key = lambda x: x[1][0])
+    sample_set = [sample_score[0]]
+    for i in xrange(1, len(sample_score)):
+        if np.all([tester(s[1], sample_score[i][1]) for s in sample_set]):
+            sample_set.append(sample_score[i])
+    return zip(*sample_set)[0]
 
 class BinIndex(object):
     ''' callable object that will return the index of a particular bin given
@@ -52,11 +72,14 @@ class BinIndex(object):
         self.min = minimum
         self.max = maximum
         self.nbins = nbins
-        if not isinstance(nbins, int):
-            self.size = reduce(operator.mul, nbins)
-        else:
+        if isinstance(nbins, int) or len(nbins) == 1:
             self.size = nbins**self.min.size
-            self.nbins = [nbins]*self.min.size
+            if not isinstance(nbins, int):
+                self.nbins = [nbins[0]]*self.min.size
+            else:
+                self.nbins = [nbins]*self.min.size
+        else:
+            self.size = reduce(operator.mul, nbins)
 
     def __call__(self, x):
         norm_x = self.nbins*((x-self.min)/(self.max-self.min))
@@ -122,16 +145,18 @@ if __name__ == '__main__':
                         type = int)
     parser.add_argument('--numsamples',
                         help = "set the number of random samples generated, this should be more than the number of sequences",
-                        type = int,
+                        type = positive_int,
                         default = 100000)
     parser.add_argument('--maxiterations',
                         help = "set the maximum number of iterations",
-                        type = int,
+                        type = positive_int,
                         default = 100000)
     parser.add_argument('--nbins',
                         help = "set the number of bins used in the algorithm",
-                        type = int,
-                        default = 30)
+                        type = positive_int,
+                        metavar = 'N',
+                        nargs = '+',
+                        default = [30])
 
     args = parser.parse_args()
 
