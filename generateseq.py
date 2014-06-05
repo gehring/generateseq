@@ -7,13 +7,13 @@ import operator
 from itertools import izip, cycle, islice
 
 
-def generateDict(f):
+def generateDict(f, converter = float):
     ''' create a table from a csv file. The delimiters are expected to be \''\'
     '''
     table = dict()
     reader = csv.reader(f, delimiter= ',')
     for row in reader:
-        table[row[0]] = row[1]
+        table[row[0]] = converter(row[1])
     return table
 
 def generateList(f):
