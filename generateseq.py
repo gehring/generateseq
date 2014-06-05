@@ -73,11 +73,11 @@ class BinIndex(object):
         self.max = maximum
         self.nbins = nbins
         if isinstance(nbins, int) or len(nbins) == 1:
-            self.size = nbins**self.min.size
             if not isinstance(nbins, int):
                 self.nbins = [nbins[0]]*self.min.size
             else:
                 self.nbins = [nbins]*self.min.size
+            self.size = nbins[0]**self.min.size
         else:
             self.size = reduce(operator.mul, nbins)
 
@@ -156,7 +156,7 @@ if __name__ == '__main__':
                         type = positive_int,
                         metavar = 'N',
                         nargs = '+',
-                        default = [30])
+                        default = [30, 30])
 
     args = parser.parse_args()
 
@@ -212,7 +212,9 @@ if __name__ == '__main__':
     if args.randomseed != None:
         np.random.seed(args.randomseed)
 
-    with open(out_filename, 'wb') as f, open(out_filename+'-amino', 'wb') as fa:
+    with open(out_filename, 'wb') as f,\
+        open(out_filename+'-amino', 'wb') as fa,\
+        open(out_filename+'-unfiltered', 'wb') as fu:
         minimum = np.array([ min(hydros.values()), min(weights.values())])
         minimum *= args.seqlength
 
@@ -250,13 +252,19 @@ if __name__ == '__main__':
 
             if i % 1000:
                 bin_count = min(counts, key = lambda x: x[0])
-                if bin_count[0] >= args.n/args.nbins:
+                if bin_count[0] >= args.n/index.size:
                     break
 
-        results = roundrobin(*bins.values())
-        for r in results:
+
+        results = list(roundrobin(*bins.values()))
+        dist = np.array([0.5,2])
+        tester = lambda x, y: np.all( np.abs(x-y) > dist )
+        filtered_results = filtersequences(results, score, tester)
+        for r in filtered_results:
             f.write(str(tuple([ codons[x] for x in r])) + '\n')
             fa.write(str(r) + '\n')
+        for r in results:
+            fu.write(str(r) + '\n')
 
 
 
