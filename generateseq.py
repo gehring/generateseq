@@ -114,6 +114,17 @@ def roundrobin(*iterables):
             pending -= 1
             nexts = cycle(islice(nexts, pending))
 
+def update_progress(progress):
+    ''' simple utility function to print out a progress report
+    '''
+    string = '\r[{0}] {1}%'.format('#'*(progress/5) + ' '*(20 - (progress/5)), progress)
+    sys.stdout.write(string)
+    sys.stdout.flush()
+
+# def kalletest(x, y):
+#     dist = np.array([0.5,2])
+#     return np.any( np.abs(x-y) > dist )
+
 if __name__ == '__main__':
     # parse input arguments if any are given
     parser = argparse.ArgumentParser(description = 'Generate a uniform spread of amino sequences.')
@@ -149,7 +160,7 @@ if __name__ == '__main__':
                         default = 100000)
     parser.add_argument('--maxiterations',
                         help = "set the maximum number of iterations",
-                        type = positive_int,
+                        type = int,
                         default = 100000)
     parser.add_argument('--nbins',
                         help = "set the number of bins used in the algorithm",
@@ -221,6 +232,9 @@ if __name__ == '__main__':
         maximum = np.array([ max(hydros.values()), max(weights.values())])
         maximum *= args.seqlength
 
+        print 'Generating initial samples...'
+        sys.stdout.flush()
+
         samples = set(generateRandom(amino, args.seqlength, args.numsamples))
         index = BinIndex(minimum, maximum, args.nbins)
         score = Scorer([hydros, weights])
@@ -234,6 +248,10 @@ if __name__ == '__main__':
 
         counts = [[len(bins[i]), i] for i in xrange(index.size)]
 
+        print 'Improving samples...'
+        sys.stdout.flush()
+
+        update_progress(0)
         for i, new_sample in izip(xrange(args.maxiterations), generateRandom(amino, args.seqlength)):
             # remove sample sequence from largest bin
             bin_count = max(counts, key = lambda x: x[0])
@@ -251,14 +269,17 @@ if __name__ == '__main__':
             bin_count[0] += 1
 
             if i % 1000:
+                update_progress((i * 100)/args.maxiterations)
                 bin_count = min(counts, key = lambda x: x[0])
                 if bin_count[0] >= args.n/index.size:
                     break
-
-
+        update_progress(100)
+        print ' Done! \nFiltering results...'
         results = list(roundrobin(*bins.values()))
+
         dist = np.array([0.5,2])
-        tester = lambda x, y: np.all( np.abs(x-y) > dist )
+        tester = lambda x, y: np.any( np.abs(x-y) > dist )
+
         filtered_results = filtersequences(results, score, tester)
         for r in filtered_results:
             f.write(str(tuple([ codons[x] for x in r])) + '\n')
